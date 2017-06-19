@@ -271,15 +271,15 @@ writeImg fr dir ps = do
     removeDirectoryRecursive dir
     createDirectory dir
     return ()
+  let fn = dir ++ "/" ++ bn ++ printf "%02d" fr ++ ".ppm"
+  let mp = fromEdgelist pm
+  let me = fromEdgelist em
+  writeFile fn . showPic . flipY $ draw mp me
   when (fr == f-1) $ do
     let cmd = "convert -delay 3 " ++ (dir ++ "/" ++ bn ++ "*.ppm") ++ " " ++ bn ++ ".gif"
     (_,_,_,hnd) <- createProcess (shell cmd)
     waitForProcess hnd
     return ()
-  let fn = dir ++ "/" ++ bn ++ printf "%02d" fr ++ ".ppm"
-  let mp = fromEdgelist pm
-  let me = fromEdgelist em
-  writeFile fn . showPic . flipY $ draw mp me
 
 -- writeGifFrame :: Int -> String -> ParseState -> IO ()
 -- writeGifFrame dir ps = do

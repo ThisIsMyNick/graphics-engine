@@ -59,7 +59,7 @@ flipY d = runSTArray $ do
     writeArray arr (a,b) (d ! (499-a,499-b))
   return arr
 
-drawLine arr p1 p2 = do
+drawLine arr p1 p2 col = do
   -- let p1' = (round $ p1 V.! 1, round $ p1 V.! 0)
   -- let p2' = (round $ p2 V.! 1, round $ p2 V.! 0)
   let (oct,p1',p2') = getOct p1 p2
@@ -70,17 +70,17 @@ drawLine arr p1 p2 = do
     let (x,y) = getXY p
     when (0 <= x && x <= 499 && 0 <= y && y <= 499) $ do
       val <- readArray arr (x,y)
-      when (getZ p >= snd val) $ do
-        writeArray arr(getXY p) $ (colToInt (255,255,255),getZ p)
+      when (getZ p > snd val) $ do
+        writeArray arr (x,y) $ (colToInt col,getZ p)
         return ()
     return arr
     where getXY (a,b,_) = (round a,round b)
           getZ  (_,_,c) = round c
 
-drawTriangle arr p1 p2 p3 = do
-  drawLine arr p1 p2
-  drawLine arr p2 p3
-  drawLine arr p3 p1
+-- drawTriangle arr p1 p2 p3 = do
+--   drawLine arr p1 p2
+--   drawLine arr p2 p3
+--   drawLine arr p3 p1
 
 isVisible :: Point3D -> Point3D -> Point3D -> Bool
 isVisible p1@(x1,y1,z1) p2@(x2,y2,z2) p3@(x3,y3,z3)
@@ -125,25 +125,28 @@ scanline p1 p2 p3
                    else bot ++ top
       --Fill in bottom half first
       --p1 < p2 < p3
-      where dx1 = (getX p3 - getX p1) / (getY p3 - getY p1)
-            dx2 = (getX p2 - getX p1) / (getY p2 - getY p1)
-            dz1 = (getZ p3 - getZ p1) / (getY p3 - getY p1)
-            dz2 = (getZ p2 - getZ p1) / (getY p2 - getY p1)
-            bot = step (getX p1) dx1 (getX p1) dx2 (getY p1) (getZ p1) dz1 (getZ p1) dz2 p2
+      where dx1 = safeDiv (getX p3 - getX p1) (getY p3 - getY p1)
+            dx2 = safeDiv (getX p2 - getX p1) (getY p2 - getY p1)
+            dz1 = safeDiv (getZ p3 - getZ p1) (getY p3 - getY p1)
+            dz2 = safeDiv (getZ p2 - getZ p1) (getY p2 - getY p1)
+            bot = step (getX p1) dx1 (getX p1) dx2 (getY p1) (getZ p1) dz1 (getZ p1) dz2 (0,0,255) p2
             --Top half
-            dx2' = (getX p3 - getX p2) / (getY p3 - getY p2)
-            dz2' = (getZ p3 - getZ p2) / (getY p3 - getY p2)
-            (x1',y',z1') = fst $ last bot
-            (x2',_ ,z2') = snd $ last bot
-            top = step x1' dx1 (getX p2) dx2' y' z1' dz1 (getZ p2) dz2' p3
+            dx2' = safeDiv (getX p3 - getX p2) (getY p3 - getY p2)
+            dz2' = safeDiv (getZ p3 - getZ p2) (getY p3 - getY p2)
+            (x1',y',z1') = (\(a,_,_)->a) $ last bot
+            (x2',_ ,z2') = (\(_,b,_)->b) $ last bot
+            top = step x1' dx1 (getX p2) dx2' y' z1' dz1 (getZ p2) dz2' (255,0,0) p3
             getX (x,_,_) = x :: Double
             getY (_,y,_) = y :: Double
             getZ (_,_,z) = z :: Double
-            step x1 dx1 x2 dx2 y z1 dz1 z2 dz2 stop
+            safeDiv a b
+              | abs b < 1 = 0
+              | otherwise = a / b
+            step x1 dx1 x2 dx2 y z1 dz1 z2 dz2 col stop
               -- | y >= getY stop = (x1,dx1,x2,dx2,y,z1,dz1,z2,dz2)
               | y >= getY stop = []
-              | otherwise = ((x1+dx1,y+1,z1+dz1),(x2+dx2,y+1,z2+dz2)) :
-                      step (x1+dx1) dx1 (x2+dx2) dx2 (y+1) (z1+dz1) dz1 (z2+dz2) dz2 stop
+              | otherwise = ((x1+dx1,y+1,z1+dz1),(x2+dx2,y+1,z2+dz2),col) :
+                step (x1+dx1) dx1 (x2+dx2) dx2 (y+1) (z1+dz1) dz1 (z2+dz2) dz2 col stop
 
 draw :: Matrix Double -> Matrix Double -> Array Point2D Int
 draw pm@(M rp cp vp) em@(M re ce ve) = fmap fst $ runSTArray $ do
@@ -166,11 +169,11 @@ draw pm@(M rp cp vp) em@(M re ce ve) = fmap fst $ runSTArray $ do
             let p3 = (c V.! 1, c V.! 0, c V.! 2)
             when (isVisible p1 p2 p3) $ do
                --drawTriangle arr p1 p2 p3
-               forM_ (scanline p1 p2 p3) $ \(a,b) -> do
-                 drawLine arr a b
+               forM_ (scanline p1 p2 p3) $ \(a,b,c) -> do
+                 drawLine arr a b c
                return ()
             return ()
           drawPts_e arr [a,b] = do
             let p1 = (a V.! 1, a V.! 0, a V.! 2)
             let p2 = (b V.! 1, b V.! 0, b V.! 2)
-            drawLine arr p1 p2
+            drawLine arr p1 p2 (255,255,255)
